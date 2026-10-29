@@ -3,11 +3,13 @@ package com.example.game
 import android.content.Context
 import android.content.SharedPreferences
 import android.media.AudioAttributes
+import android.media.MediaPlayer
 import android.media.SoundPool
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import com.example.R
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
@@ -56,8 +58,110 @@ class SoundManager(private val context: Context) {
     private var powerUpSoundId: Int = 0
     private var shootSoundId: Int = 0
     private var explodeSoundId: Int = 0
+    private var bgmPlayer: MediaPlayer? = null
+    private var gameOverBgmPlayer: MediaPlayer? = null
+
+    fun startBgm(context: Context) {
+        if (!soundEnabled) return
+        try {
+            try {
+                gameOverBgmPlayer?.let { if (it.isPlaying) it.pause(); it.seekTo(0) }
+            } catch (_: Exception) {}
+
+            if (bgmPlayer == null) {
+                bgmPlayer = MediaPlayer.create(context, R.raw.bgm_mappy)?.apply {
+                    isLooping = true
+                }
+            }
+            bgmPlayer?.let { player ->
+                if (!player.isPlaying) {
+                    try {
+                        player.seekTo(0)
+                    } catch (_: Exception) {
+                        bgmPlayer?.release()
+                        bgmPlayer = MediaPlayer.create(context, R.raw.bgm_mappy)?.apply {
+                            isLooping = true
+                        }
+                    }
+                    bgmPlayer?.start()
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun playGameOverBgm(context: Context) {
+        if (!soundEnabled) return
+        try {
+            stopBgm()
+            if (gameOverBgmPlayer == null) {
+                gameOverBgmPlayer = MediaPlayer.create(context, R.raw.gameover_bgm)?.apply {
+                    isLooping = false
+                }
+            }
+            gameOverBgmPlayer?.let { player ->
+                if (!player.isPlaying) {
+                    try {
+                        player.seekTo(0)
+                    } catch (_: Exception) {
+                        gameOverBgmPlayer?.release()
+                        gameOverBgmPlayer = MediaPlayer.create(context, R.raw.gameover_bgm)?.apply {
+                            isLooping = false
+                        }
+                    }
+                    gameOverBgmPlayer?.start()
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun pauseBgm() {
+        try {
+            if (bgmPlayer?.isPlaying == true) {
+                bgmPlayer?.pause()
+            }
+            if (gameOverBgmPlayer?.isPlaying == true) {
+                gameOverBgmPlayer?.pause()
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun resumeBgm() {
+        if (!soundEnabled) return
+        try {
+            bgmPlayer?.let { player ->
+                if (!player.isPlaying) {
+                    player.start()
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun stopBgm() {
+        try {
+            bgmPlayer?.let { player ->
+                if (player.isPlaying) {
+                    player.pause()
+                }
+                player.seekTo(0)
+            }
+        } catch (_: Exception) {}
+        try {
+            gameOverBgmPlayer?.let { player ->
+                if (player.isPlaying) {
+                    player.pause()
+                }
+                player.seekTo(0)
+            }
+        } catch (_: Exception) {}
+    }
 
     init {
+        try {
+            bgmPlayer = MediaPlayer.create(context, R.raw.bgm_mappy)?.apply {
+                isLooping = true
+            }
+        } catch (_: Exception) {}
+
         try {
             val cache = context.cacheDir
             val flapFile = File(cache, "flap.wav").apply {

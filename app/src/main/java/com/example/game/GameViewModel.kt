@@ -159,6 +159,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         when (currentState) {
             GameState.READY -> {
                 _uiState.update { it.copy(gameState = GameState.PLAYING) }
+                if (soundManager.soundEnabled) {
+                    soundManager.startBgm(getApplication())
+                }
                 performFlap()
             }
             GameState.PLAYING -> {
@@ -564,6 +567,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         lastCycleProgress: Float,
         lastPhaseName: String
     ) {
+        soundManager.playGameOverBgm(getApplication())
         soundManager.playHit()
         soundManager.triggerCrashHaptic()
         shakeTimer = 0.25f
@@ -602,6 +606,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun restartGame() {
+        soundManager.stopBgm()
         val initialBirdX = screenWidth * 0.28f
         val initialBirdY = (screenHeight - _uiState.value.groundHeight) * 0.45f
         readyAnimationTime = 0f
@@ -654,8 +659,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun togglePause() {
         _uiState.update {
             when (it.gameState) {
-                GameState.PLAYING -> it.copy(gameState = GameState.PAUSED)
-                GameState.PAUSED -> it.copy(gameState = GameState.PLAYING)
+                GameState.PLAYING -> {
+                    soundManager.pauseBgm()
+                    it.copy(gameState = GameState.PAUSED)
+                }
+                GameState.PAUSED -> {
+                    soundManager.resumeBgm()
+                    it.copy(gameState = GameState.PLAYING)
+                }
                 else -> it
             }
         }
@@ -707,6 +718,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleSound() {
         val next = !soundManager.soundEnabled
         soundManager.soundEnabled = next
+        if (!next) {
+            soundManager.stopBgm()
+        } else if (_uiState.value.gameState == GameState.PLAYING) {
+            soundManager.startBgm(getApplication())
+        }
         _uiState.update { it.copy(soundEnabled = next) }
     }
 
