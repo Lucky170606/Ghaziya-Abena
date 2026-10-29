@@ -354,12 +354,19 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                         val hitDist = star.radius + birdCollectRadius
                         if (distSq <= hitDist * hitDist) {
                             star.collected = true
-                            powerUpActive = true
-                            powerUpTimer = 8.0f
-                            powerUpAmmo = (powerUpAmmo + 5).coerceAtMost(10)
-                            soundManager.playPowerUp()
-                            soundManager.triggerTapHaptic()
-                            spawnStarCollectParticles(star.x, star.y)
+                            if (star.isGold) {
+                                powerUpActive = true
+                                powerUpTimer = 8.0f
+                                powerUpAmmo = (powerUpAmmo + 5).coerceAtMost(10)
+                                soundManager.playPowerUp()
+                                soundManager.triggerTapHaptic()
+                                spawnStarCollectParticles(star.x, star.y)
+                            } else {
+                                scoreIncrement += 1
+                                soundManager.playScore()
+                                soundManager.triggerTapHaptic()
+                                spawnSilverCollectParticles(star.x, star.y)
+                            }
                         }
                     }
 
@@ -390,15 +397,17 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                         )
                     )
 
-                    // 45% chance to spawn a star item in the gap
-                    if (Random.nextFloat() < 0.45f) {
+                    // 50% chance to spawn an item in the gap (75% silver coin, 25% gold power-up star)
+                    if (Random.nextFloat() < 0.50f) {
+                        val isGold = Random.nextFloat() < 0.25f
                         newStars.add(
                             PowerUpStar(
                                 id = System.nanoTime() + Random.nextLong(1000),
                                 x = screenWidth + 20f + pipeW / 2f,
                                 y = gapCenterY,
                                 radius = 18f * density,
-                                baseCenterY = gapCenterY
+                                baseCenterY = gapCenterY,
+                                isGold = isGold
                             )
                         )
                     }
@@ -877,6 +886,24 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 color = colors[Random.nextInt(colors.size)],
                 size = (Random.nextFloat() * 5f + 3f) * density,
                 decay = 0.04f
+            )
+        }
+        _uiState.update { it.copy(particles = it.particles + newParticles) }
+    }
+
+    private fun spawnSilverCollectParticles(cx: Float, cy: Float) {
+        val colors = listOf(0xFFC0C0C0, 0xFFE0E0E0, 0xFFFFFFFF, 0xFF90CAF9)
+        val newParticles = (0 until 10).map {
+            val angle = Random.nextFloat() * 2f * Math.PI.toFloat()
+            val speed = (Random.nextFloat() * 160f + 60f) * density
+            Particle(
+                x = cx,
+                y = cy,
+                vx = kotlin.math.cos(angle) * speed,
+                vy = kotlin.math.sin(angle) * speed,
+                color = colors[Random.nextInt(colors.size)],
+                size = (Random.nextFloat() * 4f + 2f) * density,
+                decay = 0.045f
             )
         }
         _uiState.update { it.copy(particles = it.particles + newParticles) }

@@ -55,7 +55,8 @@ data class PowerUpStar(
     val radius: Float,
     val baseCenterY: Float,
     var floatAngle: Float = 0f,
-    var collected: Boolean = false
+    var collected: Boolean = false,
+    val isGold: Boolean = true
 )
 
 data class Projectile(

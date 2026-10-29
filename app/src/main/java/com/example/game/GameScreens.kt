@@ -418,14 +418,14 @@ fun ReadyScreenOverlay(
 
             Spacer(modifier = Modifier.height(28.dp))
 
-            // Character and Difficulty Quick Bar
+            // Character, Difficulty & Time Setup Card
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xDD000000)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .widthIn(max = 380.dp)
-                    .border(1.5.dp, Color(0x55FFFFFF), RoundedCornerShape(16.dp))
+                    .widthIn(max = 390.dp)
+                    .border(1.5.dp, Color(0x66FFFFFF), RoundedCornerShape(16.dp))
             ) {
                 Column(
                     modifier = Modifier.padding(14.dp),
@@ -452,38 +452,56 @@ fun ReadyScreenOverlay(
                                 contentScale = ContentScale.Fit
                             )
                             Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Karakter Aktif",
+                                    color = Color.LightGray,
+                                    fontSize = 8.sp
+                                )
+                                Text(
+                                    text = uiState.characterSkin.displayName,
+                                    color = Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = ArcadeGold
+                        ) {
                             Text(
-                                text = uiState.characterSkin.displayName,
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
+                                text = "GANTI >",
+                                color = Color.Black,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
-                        Text(
-                            text = "GANTI >",
-                            color = ArcadeGold,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold
-                        )
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // Difficulty Selector
                     Text(
-                        text = stringResource(id = R.string.difficulty),
-                        color = Color.LightGray,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Normal
+                        text = "TINGKAT KESULITAN",
+                        color = ArcadeGold,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Difficulty.values().forEach { diff ->
                             val isSelected = uiState.difficulty == diff
                             val diffHighScore = uiState.highScoresByDifficulty[diff] ?: 0
+                            val desc = when(diff) {
+                                Difficulty.EASY -> "Pelan"
+                                Difficulty.NORMAL -> "Standar"
+                                Difficulty.HARD -> "Cepat"
+                            }
                             Button(
                                 onClick = { viewModel.setDifficulty(diff) },
                                 shape = RoundedCornerShape(8.dp),
@@ -491,15 +509,18 @@ fun ReadyScreenOverlay(
                                     containerColor = if (isSelected) ArcadeGold else Color(0x33FFFFFF),
                                     contentColor = if (isSelected) Color.Black else Color.White
                                 ),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
                                 modifier = Modifier
+                                    .weight(1f)
                                     .testTag("difficulty_${diff.name.lowercase()}")
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(text = diff.title, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                    Text(text = diff.title, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    Text(text = desc, fontSize = 7.sp, color = if (isSelected) Color(0xFF3E2723) else Color.LightGray)
+                                    Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = "🏆 $diffHighScore",
-                                        fontSize = 7.sp,
+                                        fontSize = 8.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = if (isSelected) Color(0xFF5D4037) else ArcadeGold
                                     )
@@ -508,24 +529,77 @@ fun ReadyScreenOverlay(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
+                    // Direct Time / Sky Theme Selector
                     Text(
-                        text = if (uiState.skyTheme == SkyTheme.RANDOM) "Waktu: ${uiState.currentPhaseName} (Acak)" else "Waktu: ${uiState.currentPhaseName}",
-                        color = Color.White,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold
+                        text = "PILIH WAKTU & TEMA LANGIT",
+                        color = ArcadeGold,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black
                     )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        val themes = listOf(
+                            SkyTheme.DAY to "Siang ☀️",
+                            SkyTheme.SUNSET to "Senja 🌅",
+                            SkyTheme.NIGHT to "Malam 🌙",
+                            SkyTheme.RANDOM to "Acak 🔀"
+                        )
+                        themes.forEach { (theme, label) ->
+                            val isSelected = uiState.skyTheme == theme
+                            Button(
+                                onClick = { viewModel.setSkyTheme(theme) },
+                                shape = RoundedCornerShape(6.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isSelected) ArcadeOrange else Color(0x22FFFFFF),
+                                    contentColor = Color.White
+                                ),
+                                contentPadding = PaddingValues(horizontal = 2.dp, vertical = 4.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 8.sp,
+                                    fontWeight = if (isSelected) FontWeight.Black else FontWeight.Normal,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     // Best Score display for selected difficulty
-                    Text(
-                        text = "${stringResource(id = R.string.high_score_label)} (${uiState.difficulty.title}): ${uiState.highScore}",
-                        color = ArcadeOrange,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0x33FF9100),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ArcadeOrange)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp, horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Skor Tertinggi (${uiState.difficulty.title})",
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "🏆 ${uiState.highScore}",
+                                color = ArcadeGold,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                        }
+                    }
                 }
             }
         }

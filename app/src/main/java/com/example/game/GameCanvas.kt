@@ -132,9 +132,13 @@ fun GameCanvas(
                     drawPipePair(pipe, canvasHeight - uiState.groundHeight)
                 }
 
-                // 4. Draw Floating Power-Up Stars
+                // 4. Draw Floating Power-Up Stars & Silver Coins
                 for (star in uiState.powerUpStars) {
-                    drawPowerUpStar(star)
+                    if (star.isGold) {
+                        drawPowerUpStar(star)
+                    } else {
+                        drawSilverCoin(star)
+                    }
                 }
 
                 // 5. Draw Pipe Shatter Debris Blocks
@@ -772,4 +776,58 @@ private fun DrawScope.drawSmashText(st: SmashText, density: Float) {
         textPaint.alpha = (st.alpha * 255).toInt().coerceIn(0, 255)
         drawText(st.text, st.x, st.y, textPaint)
     }
+}
+
+
+private fun DrawScope.drawSilverCoin(star: PowerUpStar) {
+    val cx = star.x
+    val cy = star.y
+    val r = star.radius
+
+    // Outer glow
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(Color(0x66C0C0C0), Color(0x22E0E0E0), Color.Transparent),
+            center = Offset(cx, cy),
+            radius = r * 1.6f
+        ),
+        radius = r * 1.6f,
+        center = Offset(cx, cy)
+    )
+
+    // Silver coin base circle
+    drawCircle(
+        color = Color(0xFFB0BEC5),
+        radius = r * 1.0f,
+        center = Offset(cx, cy)
+    )
+    drawCircle(
+        color = Color(0xFFECEFF1),
+        radius = r * 0.9f,
+        center = Offset(cx, cy)
+    )
+    drawCircle(
+        color = Color(0xFFCFD8DC),
+        radius = r * 0.75f,
+        center = Offset(cx, cy),
+        style = Stroke(width = 2f)
+    )
+
+    drawContext.canvas.nativeCanvas.apply {
+        val textPaint = Paint().apply {
+            textSize = r * 1.1f
+            isFakeBoldText = true
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+            color = android.graphics.Color.rgb(90, 105, 120)
+        }
+        drawText("¢", cx, cy + r * 0.38f, textPaint)
+    }
+
+    // White glint highlight
+    drawCircle(
+        color = Color.White,
+        radius = r * 0.25f,
+        center = Offset(cx - r * 0.25f, cy - r * 0.25f)
+    )
 }
