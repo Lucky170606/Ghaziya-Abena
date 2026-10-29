@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">Flappy Heroes</string>
+    <string name="game_title">FLAPPY HEROES</string>
+    <string name="tap_to_fly">Ketuk Layar untuk Terbang</string>
+    <string name="score_label">Skor</string>
+    <string name="high_score_label">Skor Tertinggi</string>
+    <string name="game_over">GAME OVER</string>
+    <string name="restart">Main Lagi</string>
+    <string name="credit_by">Credit by Ghazia Abena</string>
+    <string name="characters">Pilih Karakter</string>
+    <string name="difficulty">Tingkat Kesulitan</string>
+    <string name="normal">Normal</string>
+    <string name="hard">Menantang</string>
+    <string name="easy">Santai</string>
+    <string name="sound_effects">Efek Suara</string>
+</resources>

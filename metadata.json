@@ -1,0 +1,6 @@
+{
+  "name": "Flappy Heroes",
+  "description": "Game arcade Flappy Heroes seru dengan pilihan karakter hero legendaris, kontrol tap responsif, rintangan pipa dinamis, sistem skor tinggi, dan credit by Ghazia Abena.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
