@@ -95,6 +95,8 @@ fun GameHud(
     viewModel: GameViewModel,
     onOpenCharacterPicker: () -> Unit
 ) {
+    if (uiState.gameState == GameState.GAME_OVER) return
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -109,21 +111,37 @@ fun GameHud(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left Action: Pause or State button
+            // Left Action: Prominent Pause button during PLAYING / PAUSED, or Character Picker Icon during READY
             if (uiState.gameState == GameState.PLAYING || uiState.gameState == GameState.PAUSED) {
-                IconButton(
+                Surface(
                     onClick = { viewModel.togglePause() },
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0xEE1E293B),
+                    border = CardDefaults.outlinedCardBorder().copy(
+                        brush = Brush.horizontalGradient(listOf(ArcadeGold, ArcadeOrange))
+                    ),
                     modifier = Modifier
                         .testTag("pause_button")
-                        .size(44.dp)
-                        .background(Color(0xCC000000), CircleShape)
-                        .border(2.dp, ArcadeGold, CircleShape)
+                        .height(44.dp)
                 ) {
-                    Icon(
-                        imageVector = if (uiState.gameState == GameState.PAUSED) Icons.Default.PlayArrow else Icons.Default.Pause,
-                        contentDescription = "Jeda atau Lanjutkan",
-                        tint = ArcadeGold
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (uiState.gameState == GameState.PAUSED) Icons.Default.PlayArrow else Icons.Default.Pause,
+                            contentDescription = "Jeda atau Lanjutkan Permainan",
+                            tint = ArcadeGold,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = if (uiState.gameState == GameState.PAUSED) "LANJUT" else "JEDA",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             } else {
                 // Character Picker Icon
@@ -150,23 +168,6 @@ fun GameHud(
                     score = uiState.score,
                     modifier = Modifier.testTag("in_game_score")
                 )
-            } else {
-                // Prominent Credit Badge in HUD when in menu
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color(0xDD000000),
-                    border = CardDefaults.outlinedCardBorder().copy(brush = Brush.horizontalGradient(listOf(ArcadeGold, ArcadeOrange)))
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.credit_by),
-                        color = ArcadeGold,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .testTag("hud_credit_text")
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    )
-                }
             }
 
             // Right Action Controls: Sound & Theme toggle
@@ -226,6 +227,96 @@ fun GameHud(
                 }
             }
         }
+
+        // Power-Up Timer & Ammo Bar
+        if (uiState.powerUpActive && (uiState.gameState == GameState.PLAYING || uiState.gameState == GameState.PAUSED)) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xEE1E1B4B),
+                border = CardDefaults.outlinedCardBorder().copy(
+                    brush = Brush.horizontalGradient(listOf(ArcadeGold, ArcadeOrange))
+                ),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 58.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "⚡ JURUS AKTIF",
+                        color = ArcadeGold,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                    Text(
+                        text = "• ${String.format(java.util.Locale.US, "%.1f", uiState.powerUpTimer)}s",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = ArcadeRed,
+                        modifier = Modifier.padding(start = 2.dp)
+                    ) {
+                        Text(
+                            text = "x${uiState.powerUpAmmo}",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Floating Shoot Button at bottom right during PLAYING
+        if (uiState.powerUpActive && uiState.gameState == GameState.PLAYING) {
+            Button(
+                onClick = { viewModel.onShoot() },
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                shape = RoundedCornerShape(24.dp),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                modifier = Modifier
+                    .testTag("shoot_button")
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 48.dp)
+                    .background(
+                        brush = Brush.horizontalGradient(listOf(ArcadeRed, ArcadeOrange)),
+                        shape = RoundedCornerShape(24.dp)
+                    )
+                    .border(2.dp, ArcadeGold, RoundedCornerShape(24.dp))
+                    .shadow(8.dp, RoundedCornerShape(24.dp))
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "💥 TEMBAK",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                    Surface(
+                        shape = CircleShape,
+                        color = Color.Black.copy(alpha = 0.4f)
+                    ) {
+                        Text(
+                            text = "${uiState.powerUpAmmo}",
+                            color = ArcadeGold,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -249,11 +340,12 @@ fun ReadyScreenOverlay(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
+            .padding(top = 70.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
             .clickable(
                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                 indication = null
-            ) { viewModel.onTap() }
-            .padding(16.dp),
+            ) { viewModel.onTap() },
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -391,6 +483,7 @@ fun ReadyScreenOverlay(
                     ) {
                         Difficulty.values().forEach { diff ->
                             val isSelected = uiState.difficulty == diff
+                            val diffHighScore = uiState.highScoresByDifficulty[diff] ?: 0
                             Button(
                                 onClick = { viewModel.setDifficulty(diff) },
                                 shape = RoundedCornerShape(8.dp),
@@ -398,12 +491,19 @@ fun ReadyScreenOverlay(
                                     containerColor = if (isSelected) ArcadeGold else Color(0x33FFFFFF),
                                     contentColor = if (isSelected) Color.Black else Color.White
                                 ),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                                 modifier = Modifier
-                                    .height(36.dp)
                                     .testTag("difficulty_${diff.name.lowercase()}")
                             ) {
-                                Text(text = diff.title, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(text = diff.title, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = "🏆 $diffHighScore",
+                                        fontSize = 7.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) Color(0xFF5D4037) else ArcadeGold
+                                    )
+                                }
                             }
                         }
                     }
@@ -419,11 +519,11 @@ fun ReadyScreenOverlay(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // Best Score display
+                    // Best Score display for selected difficulty
                     Text(
-                        text = "${stringResource(id = R.string.high_score_label)}: ${uiState.highScore}",
+                        text = "${stringResource(id = R.string.high_score_label)} (${uiState.difficulty.title}): ${uiState.highScore}",
                         color = ArcadeOrange,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -562,9 +662,9 @@ fun GameOverScreenOverlay(
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = "TERTINGGI",
+                                text = "TERTINGGI (${uiState.difficulty.title.uppercase()})",
                                 color = ArcadeGold,
-                                fontSize = 9.sp,
+                                fontSize = 8.sp,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
@@ -576,24 +676,38 @@ fun GameOverScreenOverlay(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    // Ghazia Abena Credit Ribbon
-                    Box(
+                    // All Difficulties High Scores Breakdown
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0x33FFD700), RoundedCornerShape(8.dp))
-                            .border(1.dp, ArcadeGold, RoundedCornerShape(8.dp))
-                            .padding(vertical = 6.dp, horizontal = 8.dp),
-                        contentAlignment = Alignment.Center
+                            .background(Color(0x33000000), RoundedCornerShape(8.dp))
+                            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp))
+                            .padding(vertical = 6.dp, horizontal = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = stringResource(id = R.string.credit_by),
-                            color = ArcadeGold,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Difficulty.values().forEach { diff ->
+                            val diffScore = uiState.highScoresByDifficulty[diff] ?: 0
+                            val isCurrent = uiState.difficulty == diff
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = diff.title,
+                                    fontSize = 8.sp,
+                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isCurrent) ArcadeGold else Color.LightGray
+                                )
+                                Text(
+                                    text = "🏆 $diffScore",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isCurrent) ArcadeOrange else Color.White
+                                )
+                            }
+                        }
                     }
+
                 }
             }
 
@@ -655,12 +769,17 @@ fun GameOverScreenOverlay(
 
 @Composable
 fun PauseScreenOverlay(
+    uiState: GameUiState,
     viewModel: GameViewModel
 ) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0x88000000))
+            .background(Color(0x99000000))
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null
+            ) { /* Consume taps so clicking outside the dialog does not unpause or flap */ }
             .padding(20.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -670,19 +789,58 @@ fun PauseScreenOverlay(
             modifier = Modifier
                 .fillMaxWidth()
                 .widthIn(max = 360.dp)
-                .border(2.dp, ArcadeGold, RoundedCornerShape(16.dp))
+                .border(2.5.dp, ArcadeGold, RoundedCornerShape(16.dp))
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "PERMAINAN DIJEDA",
-                    color = ArcadeGold,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Pause,
+                        contentDescription = null,
+                        tint = ArcadeGold,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "PERMAINAN DIJEDA",
+                        color = ArcadeGold,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Stats preview while paused
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0x33000000),
+                    border = CardDefaults.outlinedCardBorder().copy(
+                        brush = Brush.horizontalGradient(listOf(ArcadeGold, ArcadeOrange))
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = "SKOR SAAT INI", color = Color.LightGray, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "${uiState.score}", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(text = "REKOR (${uiState.difficulty.title.uppercase()})", color = ArcadeGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "${uiState.highScore}", color = ArcadeGold, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(20.dp))
 
@@ -697,7 +855,7 @@ fun PauseScreenOverlay(
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "LANJUTKAN", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "LANJUTKAN", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -713,17 +871,9 @@ fun PauseScreenOverlay(
                 ) {
                     Icon(Icons.Default.Refresh, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "MULAI ULANG", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "MULAI ULANG", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = stringResource(id = R.string.credit_by),
-                    color = Color.LightGray,
-                    fontSize = 8.sp,
-                    textAlign = TextAlign.Center
-                )
             }
         }
     }
@@ -839,15 +989,6 @@ fun CharacterPickerSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Credit footer
-            Text(
-                text = stringResource(id = R.string.credit_by),
-                color = ArcadeGold,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold
-            )
 
             Spacer(modifier = Modifier.height(20.dp))
         }

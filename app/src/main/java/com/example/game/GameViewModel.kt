@@ -20,6 +20,7 @@ data class GameUiState(
     val isNewHighScore: Boolean = false,
     val characterSkin: CharacterSkin = CharacterSkin.ROCKY,
     val difficulty: Difficulty = Difficulty.NORMAL,
+    val highScoresByDifficulty: Map<Difficulty, Int> = emptyMap(),
     val skyTheme: SkyTheme = SkyTheme.RANDOM,
     val skyCycleProgress: Float = 0.05f,
     val currentPhaseName: String = "Siang ☀️",
@@ -40,9 +41,19 @@ data class GameUiState(
     val groundOffset: Float = 0f,
     val groundHeight: Float = 260f,
 
-    // Screen Shake effect on game over
+    // Screen Shake effect on game over or pipe smash
     val shakeOffsetX: Float = 0f,
     val shakeOffsetY: Float = 0f,
+
+    // Power-Up & Hero Projectiles
+    val powerUpActive: Boolean = false,
+    val powerUpTimer: Float = 0f,
+    val powerUpDuration: Float = 8f,
+    val powerUpAmmo: Int = 0,
+    val powerUpStars: List<PowerUpStar> = emptyList(),
+    val projectiles: List<Projectile> = emptyList(),
+    val pipeDebris: List<PipeDebris> = emptyList(),
+    val smashTexts: List<SmashText> = emptyList(),
 
     // Visual particles
     val particles: List<Particle> = emptyList()
@@ -66,6 +77,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     private var shakeTimer: Float = 0f
     private var timePlayed: Float = 0f
 
+    fun getHighScoreForDifficulty(diff: Difficulty): Int {
+        return prefs.getInt("high_score_${diff.name}", 0)
+    }
+
+    private fun loadAllHighScores(): Map<Difficulty, Int> {
+        return Difficulty.values().associateWith { diff ->
+            prefs.getInt("high_score_${diff.name}", 0)
+        }
+    }
+
     private fun generateRandomPhase(): Pair<Float, String> {
         val phases = listOf(
             0.05f to "Siang ☀️",
@@ -80,7 +101,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val savedDiff = Difficulty.valueOf(prefs.getString("difficulty", Difficulty.NORMAL.name) ?: Difficulty.NORMAL.name)
         val savedSkin = CharacterSkin.valueOf(prefs.getString("skin", CharacterSkin.ROCKY.name) ?: CharacterSkin.ROCKY.name)
         val savedTheme = SkyTheme.valueOf(prefs.getString("theme", SkyTheme.RANDOM.name) ?: SkyTheme.RANDOM.name)
-        val savedHighScore = prefs.getInt("high_score_${savedDiff.name}", 0)
+        val allHighScores = loadAllHighScores()
+        val savedHighScore = allHighScores[savedDiff] ?: 0
 
         val (initProg, initPhase) = if (savedTheme == SkyTheme.RANDOM) {
             generateRandomPhase()
@@ -101,6 +123,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 skyCycleProgress = initProg,
                 currentPhaseName = initPhase,
                 highScore = savedHighScore,
+                highScoresByDifficulty = allHighScores,
                 soundEnabled = soundManager.soundEnabled,
                 hapticEnabled = soundManager.hapticEnabled
             )
@@ -142,7 +165,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 performFlap()
             }
             GameState.PAUSED -> {
-                _uiState.update { it.copy(gameState = GameState.PLAYING) }
+                // Do not unpause or flap on canvas tap while paused; player must tap "Lanjutkan" or Pause button
             }
             GameState.GAME_OVER -> {
                 // Ignore taps on background during game over
@@ -252,6 +275,18 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val newRotation = state.birdRotation + (targetRotation - state.birdRotation) * (dt * 12f).coerceAtMost(1f)
 
+                // Power-Up timer update
+                var powerUpActive = state.powerUpActive
+                var powerUpTimer = state.powerUpTimer
+                var powerUpAmmo = state.powerUpAmmo
+                if (powerUpActive) {
+                    powerUpTimer -= dt
+                    if (powerUpTimer <= 0f || powerUpAmmo <= 0) {
+                        powerUpActive = false
+                        powerUpTimer = 0f
+                    }
+                }
+
                 // Pipe movement & collision detection
                 val pipeSpeed = baseSpeed
                 val newPipes = ArrayList<PipePair>()
@@ -275,14 +310,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     val gapTop = pipe.gapCenterY - pipe.gapHeight / 2f
                     val gapBottom = pipe.gapCenterY + pipe.gapHeight / 2f
 
-                    // Score check
+                    // Score check (only for surviving pipes)
                     if (!pipe.hasScored && pipeRight < state.birdX) {
                         pipe.hasScored = true
                         scoreIncrement += state.difficulty.scoreMultiplier
                     }
 
-                    // Pipe collision
-                    if (!collided) {
+                    // Pipe collision (skipped if pipe is destroyed by hero projectile!)
+                    if (!collided && !pipe.isDestroyed) {
                         val overlapX = birdRight > nx && birdLeft < pipeRight
                         if (overlapX) {
                             val inGap = birdTop > gapTop && birdBottom < gapBottom
@@ -299,7 +334,38 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
 
-                // Spawn new pipe
+                // Power-Up Star collectables update & collision
+                val newStars = ArrayList<PowerUpStar>()
+                val birdCenterX = state.birdX
+                val birdCenterY = newBirdY
+                val birdCollectRadius = state.birdWidth * 0.45f
+                for (star in state.powerUpStars) {
+                    star.x -= pipeSpeed * dt
+                    star.floatAngle += dt * 4.5f
+                    star.y = star.baseCenterY + sin(star.floatAngle) * (14f * density)
+
+                    if (!star.collected) {
+                        val dx = star.x - birdCenterX
+                        val dy = star.y - birdCenterY
+                        val distSq = dx * dx + dy * dy
+                        val hitDist = star.radius + birdCollectRadius
+                        if (distSq <= hitDist * hitDist) {
+                            star.collected = true
+                            powerUpActive = true
+                            powerUpTimer = 8.0f
+                            powerUpAmmo = (powerUpAmmo + 5).coerceAtMost(10)
+                            soundManager.playPowerUp()
+                            soundManager.triggerTapHaptic()
+                            spawnStarCollectParticles(star.x, star.y)
+                        }
+                    }
+
+                    if (!star.collected && star.x + star.radius > -40f) {
+                        newStars.add(star)
+                    }
+                }
+
+                // Spawn new pipe and optional floating star
                 pipeSpawnTimer += dt
                 val spawnInterval = 1.75f / state.difficulty.speedScale
                 if (pipeSpawnTimer >= spawnInterval) {
@@ -320,6 +386,84 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                             width = pipeW
                         )
                     )
+
+                    // 45% chance to spawn a star item in the gap
+                    if (Random.nextFloat() < 0.45f) {
+                        newStars.add(
+                            PowerUpStar(
+                                id = System.nanoTime() + Random.nextLong(1000),
+                                x = screenWidth + 20f + pipeW / 2f,
+                                y = gapCenterY,
+                                radius = 18f * density,
+                                baseCenterY = gapCenterY
+                            )
+                        )
+                    }
+                }
+
+                // Projectiles update & pipe destruction collision
+                val activeProjectiles = ArrayList<Projectile>()
+                val newDebris = ArrayList<PipeDebris>(state.pipeDebris)
+                val newSmashTexts = ArrayList<SmashText>(state.smashTexts)
+
+                for (proj in state.projectiles) {
+                    proj.x += proj.vx * dt
+                    var hit = false
+
+                    for (pipe in newPipes) {
+                        if (pipe.isDestroyed) continue
+                        val px = pipe.x
+                        val pw = pipe.width
+                        val gapTop = pipe.gapCenterY - pipe.gapHeight / 2f
+                        val gapBottom = pipe.gapCenterY + pipe.gapHeight / 2f
+
+                        // Check projectile collision against pipe
+                        if (proj.x + proj.radius >= px && proj.x - proj.radius <= px + pw) {
+                            if (proj.y - proj.radius <= gapTop || proj.y + proj.radius >= gapBottom) {
+                                hit = true
+                                pipe.isDestroyed = true
+                                scoreIncrement += 5
+
+                                soundManager.playExplosion()
+                                soundManager.triggerCrashHaptic()
+                                shakeTimer = 0.22f
+
+                                spawnPipeDebris(pipe, newDebris)
+                                spawnExplosionParticles(pipe.x + pipe.width / 2f, proj.y)
+
+                                newSmashTexts.add(
+                                    SmashText(
+                                        id = System.nanoTime(),
+                                        x = pipe.x + pipe.width / 2f,
+                                        y = pipe.gapCenterY,
+                                        text = "+5 SMASH!"
+                                    )
+                                )
+                                break
+                            }
+                        }
+                    }
+
+                    if (!hit && proj.x - proj.radius < screenWidth + 100f) {
+                        activeProjectiles.add(proj)
+                    }
+                }
+
+                // Pipe Debris physics update
+                val updatedDebris = newDebris.mapNotNull { d ->
+                    d.x += d.vx * dt
+                    d.vy += 1250f * density * dt
+                    d.y += d.vy * dt
+                    d.rotation += d.rotSpeed * dt
+                    d.alpha = (d.alpha - dt * 0.85f).coerceAtLeast(0f)
+                    if (d.alpha > 0f && d.y < screenHeight) d else null
+                }
+
+                // Smash Text physics update
+                val updatedSmashTexts = newSmashTexts.mapNotNull { st ->
+                    st.y += st.vy * dt
+                    st.alpha = (st.alpha - dt * 1.1f).coerceAtLeast(0f)
+                    if (st.alpha > 0f) st else null
                 }
 
                 if (scoreIncrement > 0) {
@@ -327,14 +471,22 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     spawnScoreParticles(state.birdX, newBirdY)
                 }
 
+                val currentScore = state.score + scoreIncrement
+                val currentDiff = state.difficulty
+                val savedBaselineHigh = getHighScoreForDifficulty(currentDiff)
+                val isRecordBroken = currentScore > savedBaselineHigh
+                val activeHigh = if (isRecordBroken) currentScore else savedBaselineHigh
+
+                var allScoresMap = state.highScoresByDifficulty
+                if (isRecordBroken) {
+                    prefs.edit().putInt("high_score_${currentDiff.name}", currentScore).apply()
+                    allScoresMap = allScoresMap + (currentDiff to currentScore)
+                }
+
                 if (collided) {
                     val dropVel = if (newVelocity < 0) 120f * density else newVelocity
-                    triggerGameOver(state.score + scoreIncrement, newBirdY, dropVel, newRotation, newPipes, cycleProgress, phaseName)
+                    triggerGameOver(currentScore, newBirdY, dropVel, newRotation, newPipes, cycleProgress, phaseName)
                 } else {
-                    val currentScore = state.score + scoreIncrement
-                    val newHigh = currentScore > state.highScore
-                    val activeHigh = if (newHigh) currentScore else state.highScore
-
                     _uiState.update {
                         it.copy(
                             birdY = newBirdY,
@@ -343,14 +495,22 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                             pipes = newPipes,
                             score = currentScore,
                             highScore = activeHigh,
-                            isNewHighScore = newHigh,
+                            highScoresByDifficulty = allScoresMap,
+                            isNewHighScore = isRecordBroken,
                             groundOffset = nextGround,
                             shakeOffsetX = sX,
                             shakeOffsetY = sY,
                             skyCycleProgress = cycleProgress,
                             currentPhaseName = phaseName,
                             timePlayedSeconds = timePlayed,
-                            particles = updatedParticles
+                            particles = updatedParticles,
+                            powerUpActive = powerUpActive,
+                            powerUpTimer = powerUpTimer,
+                            powerUpAmmo = powerUpAmmo,
+                            powerUpStars = newStars,
+                            projectiles = activeProjectiles,
+                            pipeDebris = updatedDebris,
+                            smashTexts = updatedSmashTexts
                         )
                     }
                 }
@@ -408,13 +568,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         soundManager.triggerCrashHaptic()
         shakeTimer = 0.25f
 
-        val currentHigh = _uiState.value.highScore
-        val isNewRecord = finalScore > currentHigh
-        val bestScore = if (isNewRecord) finalScore else currentHigh
+        val currentDiff = _uiState.value.difficulty
+        val previousHigh = getHighScoreForDifficulty(currentDiff)
+        val isNewRecord = finalScore > previousHigh
+        val bestScore = if (isNewRecord) finalScore else previousHigh
 
         if (isNewRecord) {
-            prefs.edit().putInt("high_score_${_uiState.value.difficulty.name}", bestScore).apply()
+            prefs.edit().putInt("high_score_${currentDiff.name}", bestScore).commit()
         }
+
+        val allScores = loadAllHighScores()
 
         viewModelScope.launch {
             kotlinx.coroutines.delay(120)
@@ -426,6 +589,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 gameState = GameState.GAME_OVER,
                 score = finalScore,
                 highScore = bestScore,
+                highScoresByDifficulty = allScores,
                 isNewHighScore = isNewRecord,
                 birdY = lastBirdY,
                 birdVelocity = lastVel,
@@ -444,6 +608,10 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         pipeSpawnTimer = 0f
         timePlayed = 0f
 
+        val currentDiff = _uiState.value.difficulty
+        val currentSavedHigh = getHighScoreForDifficulty(currentDiff)
+        val allHighScores = loadAllHighScores()
+
         val (newProg, newPhase) = if (_uiState.value.skyTheme == SkyTheme.RANDOM) {
             generateRandomPhase()
         } else {
@@ -459,6 +627,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             it.copy(
                 gameState = GameState.READY,
                 score = 0,
+                highScore = currentSavedHigh,
+                highScoresByDifficulty = allHighScores,
                 isNewHighScore = false,
                 birdX = initialBirdX,
                 birdY = initialBirdY,
@@ -469,7 +639,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 shakeOffsetY = 0f,
                 skyCycleProgress = newProg,
                 currentPhaseName = newPhase,
-                timePlayedSeconds = 0f
+                timePlayedSeconds = 0f,
+                powerUpActive = false,
+                powerUpTimer = 0f,
+                powerUpAmmo = 0,
+                powerUpStars = emptyList(),
+                projectiles = emptyList(),
+                pipeDebris = emptyList(),
+                smashTexts = emptyList()
             )
         }
     }
@@ -490,12 +667,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setDifficulty(diff: Difficulty) {
-        prefs.edit().putString("difficulty", diff.name).apply()
-        val savedHigh = prefs.getInt("high_score_${diff.name}", 0)
+        prefs.edit().putString("difficulty", diff.name).commit()
+        val savedHigh = getHighScoreForDifficulty(diff)
+        val allHighScores = loadAllHighScores()
         _uiState.update {
             it.copy(
                 difficulty = diff,
-                highScore = savedHigh
+                highScore = savedHigh,
+                highScoresByDifficulty = allHighScores,
+                isNewHighScore = false
             )
         }
         if (_uiState.value.gameState == GameState.GAME_OVER) {
@@ -566,6 +746,121 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 color = 0xAAFFFFFF,
                 size = (Random.nextFloat() * 3f + 2f) * density,
                 decay = 0.06f
+            )
+        }
+        _uiState.update { it.copy(particles = it.particles + newParticles) }
+    }
+
+    fun onShoot() {
+        val state = _uiState.value
+        if (state.gameState != GameState.PLAYING || !state.powerUpActive || state.powerUpAmmo <= 0) return
+
+        soundManager.playShoot()
+        soundManager.triggerTapHaptic()
+
+        val projectileColor = when (state.characterSkin) {
+            CharacterSkin.TANJIRO -> 0xFFFF4500 // Hinokami Fire (Red/Orange)
+            CharacterSkin.FRED -> 0xFFFFD700 // Stone Gold
+            CharacterSkin.AYAKA -> 0xFF00E5FF // Frost Cyan
+            CharacterSkin.ROCKY -> 0xFFFF9100 // Molten Lava
+        }
+
+        val newProj = Projectile(
+            id = System.nanoTime(),
+            x = state.birdX + state.birdWidth * 0.45f,
+            y = state.birdY,
+            vx = 1200f * density,
+            radius = 14f * density,
+            colorHex = projectileColor,
+            skin = state.characterSkin
+        )
+
+        val remainingAmmo = state.powerUpAmmo - 1
+        _uiState.update {
+            it.copy(
+                projectiles = it.projectiles + newProj,
+                powerUpAmmo = remainingAmmo,
+                powerUpActive = remainingAmmo > 0 && it.powerUpTimer > 0f
+            )
+        }
+    }
+
+    private fun spawnPipeDebris(pipe: PipePair, targetList: MutableList<PipeDebris>) {
+        val colors = listOf(0xFF22C55E, 0xFF16A34A, 0xFF15803D, 0xFF4ADE80, 0xFF166534)
+        val gapTop = pipe.gapCenterY - pipe.gapHeight / 2f
+        val gapBottom = pipe.gapCenterY + pipe.gapHeight / 2f
+        val pw = pipe.width
+
+        // Top pipe chunks (4 chunks)
+        val topChunkH = (gapTop / 4f).coerceAtLeast(10f * density)
+        for (i in 0 until 4) {
+            val yPos = gapTop - (i + 0.5f) * topChunkH
+            targetList.add(
+                PipeDebris(
+                    x = pipe.x + (if (i % 2 == 0) 0f else pw / 2f),
+                    y = yPos,
+                    vx = (Random.nextFloat() * 420f - 140f) * density,
+                    vy = (Random.nextFloat() * -380f - 100f) * density,
+                    rotation = Random.nextFloat() * 360f,
+                    rotSpeed = (Random.nextFloat() * 480f - 240f),
+                    width = pw / 2f,
+                    height = topChunkH.coerceAtMost(40f * density),
+                    colorHex = colors[Random.nextInt(colors.size)]
+                )
+            )
+        }
+
+        // Bottom pipe chunks (4 chunks)
+        val bottomChunkH = 35f * density
+        for (i in 0 until 4) {
+            val yPos = gapBottom + (i + 0.5f) * bottomChunkH
+            targetList.add(
+                PipeDebris(
+                    x = pipe.x + (if (i % 2 == 0) 0f else pw / 2f),
+                    y = yPos,
+                    vx = (Random.nextFloat() * 420f - 140f) * density,
+                    vy = (Random.nextFloat() * -450f - 120f) * density,
+                    rotation = Random.nextFloat() * 360f,
+                    rotSpeed = (Random.nextFloat() * 480f - 240f),
+                    width = pw / 2f,
+                    height = bottomChunkH,
+                    colorHex = colors[Random.nextInt(colors.size)]
+                )
+            )
+        }
+    }
+
+    private fun spawnExplosionParticles(cx: Float, cy: Float) {
+        val colors = listOf(0xFFFF4500, 0xFFFFD700, 0xFFFFFFFF, 0xFFFF8F00, 0xFF4ADE80)
+        val newParticles = (0 until 20).map {
+            val angle = Random.nextFloat() * 2f * Math.PI.toFloat()
+            val speed = (Random.nextFloat() * 280f + 100f) * density
+            Particle(
+                x = cx,
+                y = cy,
+                vx = kotlin.math.cos(angle) * speed,
+                vy = kotlin.math.sin(angle) * speed,
+                color = colors[Random.nextInt(colors.size)],
+                size = (Random.nextFloat() * 6f + 3f) * density,
+                decay = Random.nextFloat() * 0.025f + 0.03f
+            )
+        }
+        _uiState.update { it.copy(particles = it.particles + newParticles) }
+    }
+
+    private fun spawnStarCollectParticles(cx: Float, cy: Float) {
+        val colors = listOf(0xFFFFD700, 0xFFFFF176, 0xFFFFFFFF, 0xFFFFAB00)
+        val newParticles = (0 until 14).map {
+            val angle = Random.nextFloat() * 2f * Math.PI.toFloat()
+            val speed = (Random.nextFloat() * 200f + 80f) * density
+            Particle(
+                x = cx,
+                y = cy,
+                vx = kotlin.math.cos(angle) * speed,
+                vy = kotlin.math.sin(angle) * speed,
+                color = colors[Random.nextInt(colors.size)],
+                size = (Random.nextFloat() * 5f + 3f) * density,
+                decay = 0.04f
             )
         }
         _uiState.update { it.copy(particles = it.particles + newParticles) }

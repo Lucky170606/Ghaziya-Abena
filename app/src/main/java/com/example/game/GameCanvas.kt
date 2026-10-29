@@ -2,6 +2,8 @@ package com.example.game
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Paint
+import android.graphics.Typeface
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -19,8 +21,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -123,24 +127,30 @@ fun GameCanvas(
                     groundHeight = uiState.groundHeight
                 )
 
-                // 3. Draw Pipes
+                // 3. Draw Pipes (unbroken ones)
                 for (pipe in uiState.pipes) {
                     drawPipePair(pipe, canvasHeight - uiState.groundHeight)
                 }
 
-                // 4. Draw Animated Ground
-                drawGround(canvasWidth, canvasHeight, uiState.groundHeight, uiState.groundOffset)
-
-                // 5. Draw Particles
-                for (p in uiState.particles) {
-                    drawCircle(
-                        color = Color(p.color).copy(alpha = p.alpha),
-                        radius = p.size,
-                        center = Offset(p.x, p.y)
-                    )
+                // 4. Draw Floating Power-Up Stars
+                for (star in uiState.powerUpStars) {
+                    drawPowerUpStar(star)
                 }
 
-                // 6. Draw Character Bird Sprite
+                // 5. Draw Pipe Shatter Debris Blocks
+                for (debris in uiState.pipeDebris) {
+                    drawPipeDebris(debris)
+                }
+
+                // 6. Draw Animated Ground
+                drawGround(canvasWidth, canvasHeight, uiState.groundHeight, uiState.groundOffset)
+
+                // 7. Draw Hero Aura (if Power-Up is active)
+                if (uiState.powerUpActive) {
+                    drawHeroAura(uiState.birdX, uiState.birdY, uiState.birdWidth, uiState.birdHeight)
+                }
+
+                // 8. Draw Character Bird Sprite
                 drawCharacter(
                     bitmap = activeBitmap,
                     x = uiState.birdX,
@@ -149,6 +159,25 @@ fun GameCanvas(
                     height = uiState.birdHeight,
                     rotation = uiState.birdRotation
                 )
+
+                // 9. Draw Hero Projectiles
+                for (proj in uiState.projectiles) {
+                    drawProjectile(proj)
+                }
+
+                // 10. Draw Particles
+                for (p in uiState.particles) {
+                    drawCircle(
+                        color = Color(p.color).copy(alpha = p.alpha),
+                        radius = p.size,
+                        center = Offset(p.x, p.y)
+                    )
+                }
+
+                // 11. Draw Smash Texts (+5 SMASH!)
+                for (st in uiState.smashTexts) {
+                    drawSmashText(st, density)
+                }
             }
         }
     }
@@ -379,6 +408,8 @@ private fun DrawScope.drawCloud(cx: Float, cy: Float, radius: Float, color: Colo
 }
 
 private fun DrawScope.drawPipePair(pipe: PipePair, groundY: Float) {
+    if (pipe.isDestroyed) return
+
     val px = pipe.x
     val pw = pipe.width
     val gapTop = pipe.gapCenterY - pipe.gapHeight / 2f
@@ -573,5 +604,172 @@ private fun DrawScope.drawCharacter(
             dstOffset = IntOffset((x - width / 2f).toInt(), (y - height / 2f).toInt()),
             dstSize = IntSize(width.toInt(), height.toInt())
         )
+    }
+}
+
+private fun DrawScope.drawPowerUpStar(star: PowerUpStar) {
+    val cx = star.x
+    val cy = star.y
+    val r = star.radius
+
+    // Outer glow
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(Color(0x99FFD700), Color(0x33FFA000), Color.Transparent),
+            center = Offset(cx, cy),
+            radius = r * 1.8f
+        ),
+        radius = r * 1.8f,
+        center = Offset(cx, cy)
+    )
+
+    // Inner bright base
+    drawCircle(
+        color = Color(0xFFFFD700),
+        radius = r * 0.95f,
+        center = Offset(cx, cy)
+    )
+
+    // 5-pointed star polygon
+    val starPath = Path()
+    val points = 5
+    val outerR = r * 0.9f
+    val innerR = r * 0.45f
+    val startAngle = -Math.PI / 2.0
+    for (i in 0 until points * 2) {
+        val currR = if (i % 2 == 0) outerR else innerR
+        val angle = startAngle + i * Math.PI / points
+        val px = (cx + currR * kotlin.math.cos(angle)).toFloat()
+        val py = (cy + currR * kotlin.math.sin(angle)).toFloat()
+        if (i == 0) starPath.moveTo(px, py) else starPath.lineTo(px, py)
+    }
+    starPath.close()
+
+    drawPath(path = starPath, color = Color(0xFFFFF9C4))
+
+    // White core glint
+    drawCircle(
+        color = Color.White,
+        radius = r * 0.28f,
+        center = Offset(cx - r * 0.2f, cy - r * 0.2f)
+    )
+}
+
+private fun DrawScope.drawHeroAura(bx: Float, by: Float, bw: Float, bh: Float) {
+    val auraRadius = (bw.coerceAtLeast(bh)) * 0.75f
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(Color(0x88FFD700), Color(0x55FF6D00), Color.Transparent),
+            center = Offset(bx, by),
+            radius = auraRadius
+        ),
+        radius = auraRadius,
+        center = Offset(bx, by)
+    )
+    drawCircle(
+        color = Color(0xAAFFF176),
+        radius = auraRadius * 0.65f,
+        center = Offset(bx, by),
+        style = Stroke(width = 3.5f)
+    )
+}
+
+private fun DrawScope.drawProjectile(proj: Projectile) {
+    val cx = proj.x
+    val cy = proj.y
+    val r = proj.radius
+    val projColor = Color(proj.colorHex)
+
+    // Flame / Laser Trail behind projectile
+    val tailLength = r * 3.2f
+    val trailPath = Path().apply {
+        moveTo(cx, cy - r * 0.8f)
+        lineTo(cx - tailLength, cy)
+        lineTo(cx, cy + r * 0.8f)
+        close()
+    }
+    drawPath(
+        path = trailPath,
+        brush = Brush.horizontalGradient(
+            colors = listOf(Color.Transparent, projColor.copy(alpha = 0.85f)),
+            startX = cx - tailLength,
+            endX = cx
+        )
+    )
+
+    // Outer glow
+    drawCircle(
+        color = projColor.copy(alpha = 0.5f),
+        radius = r * 1.5f,
+        center = Offset(cx, cy)
+    )
+
+    // Core body
+    drawCircle(
+        color = projColor,
+        radius = r,
+        center = Offset(cx, cy)
+    )
+
+    // Hot center highlight
+    drawCircle(
+        color = Color.White,
+        radius = r * 0.45f,
+        center = Offset(cx + r * 0.2f, cy)
+    )
+}
+
+private fun DrawScope.drawPipeDebris(debris: PipeDebris) {
+    rotate(degrees = debris.rotation, pivot = Offset(debris.x, debris.y)) {
+        val baseColor = Color(debris.colorHex).copy(alpha = debris.alpha)
+        val borderColor = Color(0xFF0F381E).copy(alpha = debris.alpha)
+        val w = debris.width
+        val h = debris.height
+        val left = debris.x - w / 2f
+        val top = debris.y - h / 2f
+
+        drawRect(
+            color = baseColor,
+            topLeft = Offset(left, top),
+            size = Size(w, h)
+        )
+        // Shading bevel
+        drawRect(
+            color = Color.White.copy(alpha = 0.35f * debris.alpha),
+            topLeft = Offset(left, top),
+            size = Size(w * 0.3f, h)
+        )
+        // Outline border
+        drawRect(
+            color = borderColor,
+            topLeft = Offset(left, top),
+            size = Size(w, h),
+            style = Stroke(width = 2.5f)
+        )
+    }
+}
+
+private fun DrawScope.drawSmashText(st: SmashText, density: Float) {
+    drawContext.canvas.nativeCanvas.apply {
+        val textPaint = Paint().apply {
+            textSize = 22f * density
+            isFakeBoldText = true
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+            alpha = (st.alpha * 255).toInt().coerceIn(0, 255)
+        }
+
+        // Draw dark outline
+        textPaint.style = Paint.Style.STROKE
+        textPaint.strokeWidth = 4f * density
+        textPaint.color = android.graphics.Color.BLACK
+        textPaint.alpha = (st.alpha * 255).toInt().coerceIn(0, 255)
+        drawText(st.text, st.x, st.y, textPaint)
+
+        // Draw golden fill
+        textPaint.style = Paint.Style.FILL
+        textPaint.color = android.graphics.Color.rgb(255, 215, 0)
+        textPaint.alpha = (st.alpha * 255).toInt().coerceIn(0, 255)
+        drawText(st.text, st.x, st.y, textPaint)
     }
 }

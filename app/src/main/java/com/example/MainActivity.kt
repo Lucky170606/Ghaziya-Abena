@@ -46,15 +46,32 @@ fun FlappyBirdApp(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showCharacterPicker by remember { mutableStateOf(false) }
+    val composeContext = androidx.compose.ui.platform.LocalContext.current
+    var backPressedTime by remember { mutableStateOf(0L) }
 
     // Android Back button handling
     BackHandler(enabled = true) {
-        when (uiState.gameState) {
-            GameState.PLAYING -> viewModel.togglePause()
-            GameState.PAUSED -> viewModel.togglePause()
-            GameState.GAME_OVER -> viewModel.restartGame()
-            GameState.READY -> {
-                // Allow default back to close app
+        when {
+            showCharacterPicker -> {
+                showCharacterPicker = false
+            }
+            uiState.gameState == GameState.PLAYING -> {
+                viewModel.togglePause()
+            }
+            uiState.gameState == GameState.PAUSED -> {
+                viewModel.togglePause()
+            }
+            uiState.gameState == GameState.GAME_OVER -> {
+                viewModel.restartGame()
+            }
+            uiState.gameState == GameState.READY -> {
+                val currentTime = System.currentTimeMillis()
+                if (currentTime - backPressedTime < 2000L) {
+                    (composeContext as? android.app.Activity)?.finish()
+                } else {
+                    backPressedTime = currentTime
+                    android.widget.Toast.makeText(composeContext, "Tekan sekali lagi untuk keluar aplikasi", android.widget.Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -67,14 +84,7 @@ fun FlappyBirdApp(
             modifier = Modifier.fillMaxSize()
         )
 
-        // 2. HUD: Controls, Sound, Theme, Scores
-        GameHud(
-            uiState = uiState,
-            viewModel = viewModel,
-            onOpenCharacterPicker = { showCharacterPicker = true }
-        )
-
-        // 3. Game Overlays
+        // 2. Game Overlays
         when (uiState.gameState) {
             GameState.READY -> {
                 ReadyScreenOverlay(
@@ -85,6 +95,7 @@ fun FlappyBirdApp(
             }
             GameState.PAUSED -> {
                 PauseScreenOverlay(
+                    uiState = uiState,
                     viewModel = viewModel
                 )
             }
@@ -99,6 +110,13 @@ fun FlappyBirdApp(
                 // In-game: clean canvas with HUD
             }
         }
+
+        // 3. HUD: Controls, Sound, Theme, Scores (Top Layer - Always accessible)
+        GameHud(
+            uiState = uiState,
+            viewModel = viewModel,
+            onOpenCharacterPicker = { showCharacterPicker = true }
+        )
 
         // 4. Character Selection Bottom Sheet
         if (showCharacterPicker) {

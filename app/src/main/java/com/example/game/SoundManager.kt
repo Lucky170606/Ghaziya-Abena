@@ -53,6 +53,9 @@ class SoundManager(private val context: Context) {
     private var scoreSoundId: Int = 0
     private var hitSoundId: Int = 0
     private var dieSoundId: Int = 0
+    private var powerUpSoundId: Int = 0
+    private var shootSoundId: Int = 0
+    private var explodeSoundId: Int = 0
 
     init {
         try {
@@ -77,11 +80,29 @@ class SoundManager(private val context: Context) {
                     writeBytes(createWav(generateChirp(startFreq = 620.0, endFreq = 180.0, durationMs = 180)))
                 }
             }
+            val powerUpFile = File(cache, "powerup.wav").apply {
+                if (!exists() || length() == 0L) {
+                    writeBytes(createWav(generatePowerUpFanfare()))
+                }
+            }
+            val shootFile = File(cache, "shoot.wav").apply {
+                if (!exists() || length() == 0L) {
+                    writeBytes(createWav(generateChirp(startFreq = 1600.0, endFreq = 400.0, durationMs = 110)))
+                }
+            }
+            val explodeFile = File(cache, "explode.wav").apply {
+                if (!exists() || length() == 0L) {
+                    writeBytes(createWav(generateExplosion()))
+                }
+            }
 
             flapSoundId = soundPool.load(flapFile.absolutePath, 1)
             scoreSoundId = soundPool.load(scoreFile.absolutePath, 1)
             hitSoundId = soundPool.load(hitFile.absolutePath, 1)
             dieSoundId = soundPool.load(dieFile.absolutePath, 1)
+            powerUpSoundId = soundPool.load(powerUpFile.absolutePath, 1)
+            shootSoundId = soundPool.load(shootFile.absolutePath, 1)
+            explodeSoundId = soundPool.load(explodeFile.absolutePath, 1)
         } catch (_: Exception) {
             // Fallback gracefully if filesystem fails
         }
@@ -105,6 +126,21 @@ class SoundManager(private val context: Context) {
     fun playDie() {
         if (!soundEnabled || dieSoundId == 0) return
         soundPool.play(dieSoundId, 0.9f, 0.9f, 2, 0, 1.0f)
+    }
+
+    fun playPowerUp() {
+        if (!soundEnabled || powerUpSoundId == 0) return
+        soundPool.play(powerUpSoundId, 1.0f, 1.0f, 3, 0, 1.0f)
+    }
+
+    fun playShoot() {
+        if (!soundEnabled || shootSoundId == 0) return
+        soundPool.play(shootSoundId, 1.0f, 1.0f, 2, 0, 1.0f)
+    }
+
+    fun playExplosion() {
+        if (!soundEnabled || explodeSoundId == 0) return
+        soundPool.play(explodeSoundId, 1.0f, 1.0f, 4, 0, 1.0f)
     }
 
     fun triggerTapHaptic() {
@@ -213,6 +249,50 @@ class SoundManager(private val context: Context) {
             phase += 2.0 * PI * currentFreq / sampleRate
             val envelope = (1.0 - progress) * (1.0 - progress)
             buffer[i] = (sin(phase) * envelope * 30000).toInt().toShort()
+        }
+        return buffer
+    }
+
+    private fun generatePowerUpFanfare(): ShortArray {
+        val sampleRate = 44100
+        val notes = doubleArrayOf(523.25, 659.25, 783.99, 1046.50) // C5, E5, G5, C6 arpeggio
+        val noteSamples = (sampleRate * 0.06).toInt()
+        val totalSamples = noteSamples * notes.size
+        val buffer = ShortArray(totalSamples)
+
+        for (n in notes.indices) {
+            val freq = notes[n]
+            var phase = 0.0
+            val offset = n * noteSamples
+            for (i in 0 until noteSamples) {
+                phase += 2.0 * PI * freq / sampleRate
+                val progress = i.toDouble() / noteSamples
+                val env = (1.0 - progress * 0.5)
+                buffer[offset + i] = (sin(phase) * env * 27000).toInt().toShort()
+            }
+        }
+        return buffer
+    }
+
+    private fun generateExplosion(): ShortArray {
+        val sampleRate = 44100
+        val durationMs = 180
+        val totalSamples = (sampleRate * durationMs / 1000.0).toInt()
+        val buffer = ShortArray(totalSamples)
+        var phase = 0.0
+        val random = java.util.Random(42)
+
+        for (i in 0 until totalSamples) {
+            val progress = i.toDouble() / totalSamples
+            // Low booming pitch dropping from 220Hz to 40Hz
+            val freq = 220.0 * (1.0 - progress * 0.8)
+            phase += 2.0 * PI * freq / sampleRate
+
+            val noise = (random.nextDouble() * 2.0 - 1.0)
+            val envelope = (1.0 - progress) * (1.0 - progress)
+            // Combine noise and low boom
+            val wave = sin(phase) * 0.6 + noise * 0.4
+            buffer[i] = (wave * envelope * 30000).toInt().toShort()
         }
         return buffer
     }

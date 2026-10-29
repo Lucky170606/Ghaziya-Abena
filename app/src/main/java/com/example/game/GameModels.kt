@@ -44,7 +44,50 @@ data class PipePair(
     val gapCenterY: Float,
     val gapHeight: Float,
     val width: Float,
-    var hasScored: Boolean = false
+    var hasScored: Boolean = false,
+    var isDestroyed: Boolean = false
+)
+
+data class PowerUpStar(
+    val id: Long,
+    var x: Float,
+    var y: Float,
+    val radius: Float,
+    val baseCenterY: Float,
+    var floatAngle: Float = 0f,
+    var collected: Boolean = false
+)
+
+data class Projectile(
+    val id: Long,
+    var x: Float,
+    var y: Float,
+    var vx: Float,
+    val radius: Float,
+    val colorHex: Long,
+    val skin: CharacterSkin
+)
+
+data class PipeDebris(
+    var x: Float,
+    var y: Float,
+    var vx: Float,
+    var vy: Float,
+    var rotation: Float,
+    var rotSpeed: Float,
+    val width: Float,
+    val height: Float,
+    val colorHex: Long,
+    var alpha: Float = 1.0f
+)
+
+data class SmashText(
+    val id: Long,
+    var x: Float,
+    var y: Float,
+    val text: String,
+    var alpha: Float = 1.0f,
+    var vy: Float = -60f
 )
 
 data class Particle(
