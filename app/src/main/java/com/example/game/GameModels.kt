@@ -29,9 +29,9 @@ enum class CharacterSkin(
     FRED("Fred Flintstone", R.drawable.character_fred),
     AYAKA("Kamisato Ayaka", R.drawable.character_ayaka),
     TANJIRO("Tanjiro Kamado", R.drawable.character_tanjiro),
-    EMUL("Emul (Shangri-La Frontier)", R.drawable.character_emul),
+    EMUL("Emul", R.drawable.character_emul),
     PINK_PANTHER("Pink Panther", R.drawable.character_pink_panther),
-    PINK_KNIGHT("Rune Knight (Ragnarok)", R.drawable.character_pink_knight)
+    PINK_KNIGHT("Rune Knight", R.drawable.character_pink_knight)
 }
 
 enum class SkyTheme(val title: String) {

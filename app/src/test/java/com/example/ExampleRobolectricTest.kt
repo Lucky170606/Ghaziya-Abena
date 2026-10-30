@@ -38,7 +38,18 @@ class ExampleRobolectricTest {
   @Test
   fun `test character skins`() {
     val names = com.example.game.CharacterSkin.values().map { it.displayName }
-    assertEquals(listOf("Rocky Gibraltar", "Fred Flintstone", "Kamisato Ayaka", "Tanjiro Kamado"), names)
+    assertEquals(
+      listOf(
+        "Rocky Gibraltar",
+        "Fred Flintstone",
+        "Kamisato Ayaka",
+        "Tanjiro Kamado",
+        "Emul",
+        "Pink Panther",
+        "Rune Knight"
+      ),
+      names
+    )
   }
 
   @Test
