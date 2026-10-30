@@ -788,6 +788,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             CharacterSkin.FRED -> 0xFFFFD700 // Stone Gold
             CharacterSkin.AYAKA -> 0xFF00E5FF // Frost Cyan
             CharacterSkin.ROCKY -> 0xFFFF9100 // Molten Lava
+            CharacterSkin.EMUL -> 0xFF00BFFF // Magic Blue
+            CharacterSkin.PINK_PANTHER -> 0xFFFF1493 // Deep Pink
+            CharacterSkin.PINK_KNIGHT -> 0xFFFF69B4 // Hot Pink
         }
 
         val newProj = Projectile(
